@@ -1,5 +1,7 @@
 package com.gmail.goosius.siegewar.enums;
 
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimPermissions;
+
 import org.bukkit.entity.Player;
 
 import com.gmail.goosius.siegewar.objects.Siege;
@@ -55,12 +57,12 @@ public enum SiegeSide {
 
 	private static boolean isTownGuard(Player player, Town town) {
 		return town.hasResident(player)
-				&& player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_TOWN_SIEGE_BATTLE_POINTS.getNode());
+				&& TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_TOWN_SIEGE_BATTLE_POINTS.getNode());
 	}
 
 	private static boolean isNationSoldierOrAlliedSoldier(Player player, Town residentTown, Government governmentToCheck) {
 		Nation nation = residentTown.getNationOrNull();
-		if (nation == null || !player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_BATTLE_POINTS.getNode()))
+		if (nation == null || !TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_BATTLE_POINTS.getNode()))
 			return false;
 
 		if (governmentToCheck instanceof Nation) {

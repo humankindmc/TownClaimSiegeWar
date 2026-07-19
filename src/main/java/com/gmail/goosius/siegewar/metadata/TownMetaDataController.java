@@ -31,6 +31,7 @@ public class TownMetaDataController {
 	private static IntegerDataField plunderDebtDays = new IntegerDataField("siegewar_plunderDays", 0);
 	private static DecimalDataField dailyPlunderCost = new DecimalDataField("siegewar_dailyPlunderCost", 0.0);
     private static StringDataField homeNationUUID = new StringDataField("siegewar_homeNationUUID", "");
+    private static StringDataField occupyingNationUUID = new StringDataField("townclaim_siegewar_occupyingNationUUID", "");
 	
 	//Legacy Metadata
 	private static StringDataField legacyDataOccupyingNationUUID = new StringDataField("siegewar_occupyingNationUUID", "");
@@ -72,6 +73,26 @@ public class TownMetaDataController {
 
     public static void removeHomeNationUUID(Town town) {
         town.removeMetaData((StringDataField) homeNationUUID.clone());
+    }
+
+    public static void setOccupyingNationUUID(Town town, Nation nation) {
+        StringDataField field = (StringDataField) occupyingNationUUID.clone();
+        if (town.hasMeta(field.getKey()))
+            MetaDataUtil.setString(town, field, nation.getUUID().toString(), true);
+        else
+            town.addMetaData(new StringDataField(field.getKey(), nation.getUUID().toString()));
+    }
+
+    public static void removeOccupyingNationUUID(Town town) {
+        town.removeMetaData((StringDataField) occupyingNationUUID.clone());
+    }
+
+    public static boolean hasOccupyingNationUUID(Town town) {
+        return MetaDataUtil.hasMeta(town, occupyingNationUUID);
+    }
+
+    public static UUID getOccupyingNationUUID(Town town) {
+        return UUID.fromString(MetaDataUtil.getString(town, occupyingNationUUID));
     }
     
 	public static void removeFailedCampSiegeList(Town town) {

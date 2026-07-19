@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import org.bukkit.plugin.Plugin;
 
 import com.gmail.goosius.siegewar.SiegeWar;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.utils.FileMgmt;
 import com.gmail.goosius.siegewar.utils.SiegeWarBattleSessionUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarBlockProtectionUtil;
@@ -34,6 +35,7 @@ public class Settings {
 
 		try {
 			Settings.loadConfig(sw.getDataFolder().getPath() + File.separator + "config.yml", sw.getVersion());
+			TownClaimBridge.configureTownySettings();
 		} catch (Exception e) {
 			SiegeWar.severe("Config.yml failed to load! Disabling!");
 			loadSuccessFlag = false;
@@ -54,6 +56,7 @@ public class Settings {
 			loader.load();
 			Translation.addTranslations(loader.getTranslations());
 		} catch (Exception e) {
+			e.printStackTrace();
 			SiegeWar.severe("Language file failed to load! Disabling!");
 			loadSuccessFlag = false;
 	    }

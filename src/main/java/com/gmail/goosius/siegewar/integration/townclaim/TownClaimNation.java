@@ -14,4 +14,10 @@ final class TownClaimNation extends Nation {
     public void save() {
         TownClaimMetadataStore.save("nations", getUUID(), this);
     }
+
+    @Override
+    public boolean hasEnemy(Nation nation) {
+        // ponytail: TownClaim has no diplomacy system yet; treat every foreign nation as an opponent.
+        return nation != null && !getUUID().equals(nation.getUUID());
+    }
 }

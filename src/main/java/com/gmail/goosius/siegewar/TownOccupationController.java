@@ -9,9 +9,6 @@ import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.TownyEconomyHandler;
 import com.palmergames.bukkit.towny.TownyMessaging;
 import com.palmergames.bukkit.towny.TownySettings;
-import com.palmergames.bukkit.towny.TownyUniverse;
-import com.palmergames.bukkit.towny.event.DeleteTownEvent.Cause;
-import com.palmergames.bukkit.towny.exceptions.AlreadyRegisteredException;
 import com.palmergames.bukkit.towny.object.Nation;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.Town;
@@ -52,14 +49,10 @@ public class TownOccupationController {
 
     public static void removeTownOccupation(Town occupiedTown) {
 		//Remove the town from the occupier nation, if there is one
-		Nation occupierNation = null;
-		if(occupiedTown.hasNation()) {
-			occupierNation = occupiedTown.getNationOrNull();
-			occupiedTown.removeNation();
-		}
+		Nation occupierNation = occupiedTown.getNationOrNull();
 
 		//Set town occupied flag
-		occupiedTown.setConquered(false);
+		TownClaimBridge.clearOccupation(occupiedTown);
         
         //Remove home nation if any
         removeHomeNationIfAny(occupiedTown);
@@ -74,27 +67,13 @@ public class TownOccupationController {
     public static void setTownOccupation(Town targetTown, @NotNull Nation occupyingNation) {
         //If the town has a nation which is different than the incoming one, remove town from nation
 		Nation homeNation = targetTown.getNationOrNull();
-		if(homeNation != null && homeNation != occupyingNation) {
-			targetTown.removeNation();
-		}
-
-		//Add the town to the new nation
-		try {
-			targetTown.setNation(occupyingNation);
-		} catch (AlreadyRegisteredException are) {
-			//This exception should not happen, because we removed the nation just above
-			are.printStackTrace();
-			return;
-		}
-
-		//Set town occupied flag
-		targetTown.setConquered(true);
         
         //Set home nation if there is one
-        if(homeNation != null)
+		if(homeNation != null)
         {
             setHomeNation(targetTown, homeNation);
         }
+        TownClaimBridge.occupy(targetTown, occupyingNation);
 
 		//Remove military ranks
 		SiegeWarMilitaryRanksUtil.removeMilitaryRanksFromTownResidents(targetTown);

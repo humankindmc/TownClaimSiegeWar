@@ -1,6 +1,7 @@
 package com.palmergames.bukkit.towny;
 
 import com.gmail.goosius.siegewar.Messaging;
+import com.gmail.goosius.siegewar.SiegeWar;
 import com.palmergames.bukkit.towny.object.Nation;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.Town;
@@ -15,6 +16,18 @@ public final class TownyMessaging {
         if (sender != null) {
             sender.sendMessage(message);
         }
+    }
+
+    public static void sendDebugMsg(String message) {
+        SiegeWar.info(message);
+    }
+
+    public static void sendDevMsg(String message) {
+        SiegeWar.info(message);
+    }
+
+    public static void sendMsg(CommandSender sender, String message) {
+        sendMessage(sender, message);
     }
 
     public static void sendMsg(CommandSender sender, Translatable message) {

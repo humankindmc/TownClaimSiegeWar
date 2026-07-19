@@ -7,6 +7,7 @@ import com.gmail.goosius.siegewar.TownOccupationController;
 import com.gmail.goosius.siegewar.enums.SiegeSide;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
 import com.gmail.goosius.siegewar.hud.SiegeHUDManager;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.objects.BattleSession;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
@@ -156,6 +157,7 @@ public class SiegeWarTownyEventListener implements Listener {
     }
 
     public void runShortTimeTasks() {
+        TownClaimBridge.synchronize();
         if (SiegeWarSettings.getWarSiegeEnabled()) {
             SiegeWarNotificationUtil.sendSiegeZoneProximityWarnings();
             SiegeWarTimerTaskController.evaluateBattleSessions();

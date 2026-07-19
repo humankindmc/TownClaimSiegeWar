@@ -3,6 +3,7 @@ package com.gmail.goosius.siegewar.utils;
 import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.enums.SiegeSide;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimPermissions;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.palmergames.bukkit.towny.TownyAPI;
@@ -40,7 +41,7 @@ public class SiegeWarBattleCommanderUtil {
                 //Find the commanders for the siege
                 for(Player player: Bukkit.getOnlinePlayers()) {
                     if (SiegeWarDistanceUtil.isPlayerRegisteredToActiveSiegeZone(player)
-                            && player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_STARTCONQUESTSIEGE.getNode()))
+                            && TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_STARTCONQUESTSIEGE.getNode()))
                     {
                         if(SiegeSide.getPlayerSiegeSide(siege,player) == SiegeSide.ATTACKERS) {
                             if(attackingCommander == null) {

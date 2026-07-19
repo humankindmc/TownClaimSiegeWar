@@ -13,6 +13,9 @@ mvn package
 ```
 
 Install both `townclaim-1.0.0-SNAPSHOT.jar` and `TownClaimSiegeWar-0.1.0-SNAPSHOT.jar`. Towny is not installed separately; the small compatibility surface SiegeWar still uses is bundled into this fork.
+
+TownClaim towns, selected memberships, claims, town hearts, and nations are mirrored into SiegeWar and refreshed while the server runs. Occupation changes are written back to TownClaim. Town officers/mayors receive town-level SiegeWar authority, and leaders of a nation's leader town receive nation-level authority; grant the normal `siegewar.*` Bukkit nodes to additional soldiers. Because TownClaim does not yet expose diplomacy, every foreign nation is treated as a valid opponent. Economy-only SiegeWar features remain disabled while TownClaim's treasury backend is the standalone no-op implementation.
+
 ### Features
 * ⚔️ **Sieges:** Wars are conducted by means of sieges. A siege occurs when a nation attacks a town.
 * 🤖 **Automatic:** Sieges are started by players and automatically managed by the plugin. Daily staff management of sieges is not required.

@@ -1,10 +1,8 @@
 package com.gmail.goosius.siegewar;
 
-import com.gmail.goosius.siegewar.listeners.SiegeWarTownyChatEventListener;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.gmail.goosius.siegewar.utils.DataCleanupUtil;
 
-import com.gmail.goosius.siegewar.utils.PermsCleanupUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarMoneyUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.PluginManager;
@@ -20,14 +18,10 @@ import com.palmergames.bukkit.towny.scheduling.impl.FoliaTaskScheduler;
 import com.palmergames.bukkit.util.Colors;
 import com.palmergames.bukkit.util.Version;
 
-import me.clip.placeholderapi.expansion.PlaceholderExpansion;
-
 import com.gmail.goosius.siegewar.command.SiegeWarAdminCommand;
 import com.gmail.goosius.siegewar.command.SiegeWarCommand;
 import com.gmail.goosius.siegewar.hud.SiegeHUDManager;
-import com.gmail.goosius.siegewar.integration.PAPIPlaceholderExpansion;
 import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
-import com.gmail.goosius.siegewar.integration.dynmap.DynmapIntegration;
 import com.gmail.goosius.siegewar.listeners.SiegeWarBukkitEventListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarNationEventListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarPlotEventListener;
@@ -92,8 +86,6 @@ public class SiegeWar extends JavaPlugin {
 		registerPlayerCommands();
 		checkIntegrations();
 		DataCleanupUtil.cleanupData(siegeWarPluginError, listenersRegistered);
-		PermsCleanupUtil.cleanupPerms(siegeWarPluginError);
-
 		//Calculate estimated total money in economy. This will run async.
 		SiegeWarMoneyUtil.calculateEstimatedTotalMoneyInEconomy(siegeWarPluginError);
 
@@ -146,13 +138,25 @@ public class SiegeWar extends JavaPlugin {
 		} else {
 			if (getServer().getPluginManager().isPluginEnabled("dynmap")) {
 				info("SiegeWar found Dynmap plugin, enabling Dynmap support.");
-				new DynmapIntegration(this);
+				loadOptionalIntegration("com.gmail.goosius.siegewar.integration.dynmap.DynmapIntegration", true);
 			}
 			if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
 				info("SiegeWar found PlaceholderAPI plugin, enabling PAPI support.");
-				PlaceholderExpansion expansion = new PAPIPlaceholderExpansion();
-				expansion.register();
+				loadOptionalIntegration("com.gmail.goosius.siegewar.integration.PAPIPlaceholderExpansion", false);
 			}
+		}
+	}
+
+	private void loadOptionalIntegration(String className, boolean pluginConstructor) {
+		try {
+			Class<?> type = Class.forName(className);
+			Object integration = pluginConstructor
+					? type.getConstructor(SiegeWar.class).newInstance(this)
+					: type.getConstructor().newInstance();
+			if (!pluginConstructor)
+				type.getMethod("register").invoke(integration);
+		} catch (ReflectiveOperationException exception) {
+			severe("Could not enable optional integration " + className + ": " + exception.getMessage());
 		}
 	}
 	
@@ -174,10 +178,6 @@ public class SiegeWar extends JavaPlugin {
 			pm.registerEvents(new SiegeWarStatusScreenListener(), this);
 			pm.registerEvents(new SiegeWarSelfListener(), this);
 			pm.registerEvents(new SiegeWarLoreListener(), this);
-			if (getServer().getPluginManager().isPluginEnabled("TownyChat")) {
-				info("SiegeWar found TownyChat plugin, enabling TownyChat integration.");
-				pm.registerEvents(new SiegeWarTownyChatEventListener(), this);
-			}
 			return true;
 		}
 	}

@@ -1,6 +1,10 @@
 package com.gmail.goosius.siegewar.integration.townclaim;
 
+import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.SiegeWar;
+import com.gmail.goosius.siegewar.enums.SiegeRemoveReason;
+import com.gmail.goosius.siegewar.metadata.TownMetaDataController;
+import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.Settings;
 import com.humankindmc.claims.ClaimsService;
 import com.humankindmc.claims.model.Claim;
@@ -23,128 +27,382 @@ import org.bukkit.World;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.lang.reflect.Field;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public final class TownClaimBridge {
+    private static final Map<UUID, TownClaimTown> TOWNS = new HashMap<>();
+    private static final Map<UUID, TownClaimResident> RESIDENTS = new HashMap<>();
+    private static final Map<UUID, TownClaimNation> NATIONS = new HashMap<>();
+    private static final Map<WorldCoord, TownBlock> TOWN_BLOCKS = new HashMap<>();
+
+    private static TownyUniverse universe;
+    private static TownService townService;
+    private static NationService nationService;
+    private static ClaimsService claimsService;
+    private static TownHeartRepository heartRepository;
+    private static boolean loaded;
+    private static boolean synchronizing;
+
     private TownClaimBridge() {
     }
 
     public static boolean load() {
         try {
-            setStaticField(TownySettings.class, "config", Settings.getConfig());
+            configureTownySettings();
             TownClaimMetadataStore.load(SiegeWar.getSiegeWar().getDataFolder());
-            TownService towns = service(TownService.class);
-            NationService nations = service(NationService.class);
-            ClaimsService claims = service(ClaimsService.class);
-            TownHeartRepository hearts = service(TownHeartRepository.class);
-            TownyUniverse universe = TownyUniverse.getInstance();
+            townService = service(TownService.class);
+            nationService = service(NationService.class);
+            claimsService = service(ClaimsService.class);
+            heartRepository = service(TownHeartRepository.class);
+            universe = TownyUniverse.getInstance();
             universe.setPermissionSource(new TownClaimPermissionSource());
-            Map<UUID, TownClaimTown> townMap = loadTowns(universe, towns);
-            loadResidents(universe, towns, townMap);
-            loadClaims(universe, claims, hearts, townMap);
-            loadNations(universe, nations, townMap);
-            SiegeWar.info("TownClaim bridge loaded " + townMap.size() + " towns and " + universe.getNations().size() + " nations.");
+            loaded = true;
+            synchronizeNow();
+            SiegeWar.info("TownClaim bridge loaded " + TOWNS.size() + " towns and " + NATIONS.size() + " nations.");
             return true;
         } catch (Exception exception) {
+            loaded = false;
             SiegeWar.severe("Could not load TownClaim data: " + exception.getMessage());
             exception.printStackTrace();
             return false;
         }
     }
 
-    public static void forceDisband(Town town) {
-        TownService towns = service(TownService.class);
-        if (!towns.forceDisband(town.getUUID()).success()) {
-            throw new IllegalStateException("TownClaim could not disband " + town.getName());
-        }
+    public static void configureTownySettings() {
         try {
-            TownyUniverse.getInstance().unregisterTown(town);
+            setStaticField(TownySettings.class, "config", Settings.getConfig());
         } catch (Exception exception) {
-            throw new IllegalStateException("Could not remove " + town.getName() + " from the SiegeWar bridge", exception);
+            throw new IllegalStateException("Could not configure the Towny compatibility classes", exception);
         }
     }
 
-    private static Map<UUID, TownClaimTown> loadTowns(TownyUniverse universe, TownService service) throws Exception {
-        Map<UUID, TownClaimTown> result = new HashMap<>();
+    /** Refreshes compatibility objects in place so active sieges keep stable town and nation identities. */
+    public static void synchronize() {
+        if (!loaded || synchronizing) {
+            return;
+        }
+        try {
+            synchronizeNow();
+        } catch (Exception exception) {
+            SiegeWar.severe("Could not synchronize TownClaim data: " + exception.getMessage());
+            exception.printStackTrace();
+        }
+    }
+
+    public static void forceDisband(Town town) {
+        if (!townService.forceDisband(town.getUUID()).success()) {
+            throw new IllegalStateException("TownClaim could not disband " + town.getName());
+        }
+        synchronize();
+    }
+
+    public static void occupy(Town town, Nation occupier) {
+        try {
+            moveTownToNation(town.getUUID(), occupier.getUUID());
+            setNation(town, occupier);
+            town.setConquered(true);
+            TownMetaDataController.setOccupyingNationUUID(town, occupier);
+            town.save();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not occupy " + town.getName() + " for " + occupier.getName(), exception);
+        }
+    }
+
+    public static void clearOccupation(Town town) {
+        try {
+            moveTownToNation(town.getUUID(), null);
+            setNation(town, null);
+            town.setConquered(false);
+            TownMetaDataController.removeOccupyingNationUUID(town);
+            town.save();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not clear the occupation of " + town.getName(), exception);
+        }
+    }
+
+    private static void synchronizeNow() throws Exception {
+        synchronizing = true;
+        try {
+            syncWorlds();
+            syncTowns();
+            syncResidents();
+            syncClaims();
+            syncNations();
+        } finally {
+            synchronizing = false;
+        }
+    }
+
+    private static void syncWorlds() {
         for (World world : Bukkit.getWorlds()) {
+            if (universe.hasTownyWorld(world.getName())) {
+                continue;
+            }
             TownyWorld townyWorld = new TownyWorld(world.getName(), world.getUID());
             townyWorld.setUsingTowny(true);
             townyWorld.setWarAllowed(true);
             universe.registerTownyWorld(townyWorld);
         }
-        for (com.humankindmc.claims.town.Town source : service.getTowns()) {
-            TownClaimTown town = new TownClaimTown(source.name(), source.id());
-            universe.registerTown(town);
-            result.put(source.id(), town);
-        }
-        return result;
     }
 
-    @SuppressWarnings("unchecked")
-    private static void loadResidents(TownyUniverse universe, TownService service, Map<UUID, TownClaimTown> towns) throws Exception {
-        for (TownClaimTown town : towns.values()) {
-            for (TownMember member : service.getMembers(town.getUUID())) {
-                TownClaimResident resident = new TownClaimResident(member.playerName(), member.playerId());
-                setField(resident, "town", town);
-                ((List<Resident>) field(town, "residents").get(town)).add(resident);
-                if (member.playerId().equals(service.getTown(town.getUUID()).orElseThrow().mayorId())) {
-                    setField(town, "mayor", resident);
-                }
-                universe.registerResident(resident);
+    private static void syncTowns() throws Exception {
+        Map<UUID, com.humankindmc.claims.town.Town> sources = townService.getTowns().stream()
+                .collect(Collectors.toMap(com.humankindmc.claims.town.Town::id, Function.identity()));
+        for (UUID townId : Set.copyOf(TOWNS.keySet())) {
+            if (!sources.containsKey(townId)) {
+                removeTown(TOWNS.remove(townId));
+            }
+        }
+        for (com.humankindmc.claims.town.Town source : sources.values()) {
+            TownClaimTown town = TOWNS.get(source.id());
+            if (town == null) {
+                town = new TownClaimTown(source.name(), source.id());
+                universe.registerTown(town);
+                TOWNS.put(source.id(), town);
+            } else if (!town.getName().equals(source.name())) {
+                renameTown(town, source.name());
             }
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadClaims(TownyUniverse universe, ClaimsService service, TownHeartRepository hearts,
-                                   Map<UUID, TownClaimTown> towns) throws Exception {
-        for (TownClaimTown town : towns.values()) {
-            TownBlock first = null;
-            for (Claim claim : service.getClaimsForTown(town.getUUID())) {
+    private static void syncResidents() throws Exception {
+        Map<UUID, TownMember> sources = new LinkedHashMap<>();
+        Map<UUID, List<TownMember>> memberships = new HashMap<>();
+        for (UUID townId : TOWNS.keySet()) {
+            List<TownMember> members = List.copyOf(townService.getMembers(townId));
+            memberships.put(townId, members);
+            members.forEach(member -> sources.put(member.playerId(), member));
+        }
+
+        for (UUID residentId : Set.copyOf(RESIDENTS.keySet())) {
+            if (!sources.containsKey(residentId)) {
+                TownClaimResident resident = RESIDENTS.remove(residentId);
+                setField(resident, "town", null);
+                universe.unregisterResident(resident);
+            }
+        }
+        for (TownMember source : sources.values()) {
+            TownClaimResident resident = RESIDENTS.get(source.playerId());
+            if (resident == null) {
+                resident = new TownClaimResident(source.playerName(), source.playerId());
+                universe.registerResident(resident);
+                RESIDENTS.put(source.playerId(), resident);
+            } else if (!resident.getName().equals(source.playerName())) {
+                renameResident(resident, source.playerName());
+            }
+            setField(resident, "town", null);
+        }
+
+        for (TownClaimTown town : TOWNS.values()) {
+            ((List<Resident>) field(town, "residents").get(town)).clear();
+            setField(town, "mayor", null);
+            UUID mayorId = townService.getTown(town.getUUID()).orElseThrow().mayorId();
+            for (TownMember member : memberships.getOrDefault(town.getUUID(), List.of())) {
+                TownClaimResident resident = RESIDENTS.get(member.playerId());
+                ((List<Resident>) field(town, "residents").get(town)).add(resident);
+                if (townService.getTownForPlayer(member.playerId())
+                        .map(com.humankindmc.claims.town.Town::id).filter(town.getUUID()::equals).isPresent()) {
+                    setField(resident, "town", town);
+                }
+                if (member.playerId().equals(mayorId)) {
+                    setField(town, "mayor", resident);
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void syncClaims() throws Exception {
+        Map<WorldCoord, TownClaimTown> expected = new LinkedHashMap<>();
+        for (TownClaimTown town : TOWNS.values()) {
+            for (Claim claim : claimsService.getClaimsForTown(town.getUUID())) {
                 for (int x = claim.region().minChunkX(); x <= claim.region().maxChunkX(); x++) {
                     for (int z = claim.region().minChunkZ(); z <= claim.region().maxChunkZ(); z++) {
-                        TownBlock block = new TownBlock(new WorldCoord(claim.worldName(), x, z));
-                        setField(block, "town", town);
-                        ((Map<WorldCoord, TownBlock>) field(town, "townBlocks").get(town)).put(block.getWorldCoord(), block);
-                        universe.addTownBlock(block);
-                        first = first == null ? block : first;
+                        expected.put(new WorldCoord(claim.worldName(), x, z), town);
                     }
                 }
             }
-            TownHeartLocation heart = hearts.findByTown(town.getUUID()).orElse(null);
-            TownBlock home = heart == null ? first : universe.getTownBlockOrNull(
-                    new WorldCoord(heart.worldName(), Math.floorDiv(heart.x(), 16), Math.floorDiv(heart.z(), 16)));
-            if (home != null) {
-                setField(town, "homeBlock", home);
-                TownyWorld world = home.getWorld();
-                setField(town, "world", world);
-                world.addTown(town);
-                if (heart != null && world.getBukkitWorld() != null) {
-                    town.setSpawn(new Location(world.getBukkitWorld(), heart.x() + 0.5, heart.y(), heart.z() + 0.5));
+        }
+
+        for (WorldCoord coord : Set.copyOf(TOWN_BLOCKS.keySet())) {
+            TownBlock block = TOWN_BLOCKS.get(coord);
+            if (expected.get(coord) != block.getTownOrNull()) {
+                universe.removeTownBlock(block);
+                TOWN_BLOCKS.remove(coord);
+            }
+        }
+        for (TownClaimTown town : TOWNS.values()) {
+            TownyWorld oldWorld = town.getHomeblockWorld();
+            if (oldWorld != null) {
+                try {
+                    oldWorld.removeTown(town);
+                } catch (Exception ignored) {
                 }
+            }
+            ((Map<WorldCoord, TownBlock>) field(town, "townBlocks").get(town)).clear();
+            setField(town, "homeBlock", null);
+            setField(town, "world", null);
+        }
+
+        Map<UUID, TownBlock> firstBlocks = new HashMap<>();
+        for (Map.Entry<WorldCoord, TownClaimTown> entry : expected.entrySet()) {
+            TownBlock block = TOWN_BLOCKS.get(entry.getKey());
+            if (block == null) {
+                block = new TownBlock(entry.getKey());
+                setField(block, "town", entry.getValue());
+                universe.addTownBlock(block);
+                TOWN_BLOCKS.put(entry.getKey(), block);
+            }
+            ((Map<WorldCoord, TownBlock>) field(entry.getValue(), "townBlocks").get(entry.getValue()))
+                    .put(entry.getKey(), block);
+            firstBlocks.putIfAbsent(entry.getValue().getUUID(), block);
+        }
+
+        for (TownClaimTown town : TOWNS.values()) {
+            TownHeartLocation heart = heartRepository.findByTown(town.getUUID()).orElse(null);
+            TownBlock home = heart == null ? firstBlocks.get(town.getUUID()) : universe.getTownBlockOrNull(
+                    new WorldCoord(heart.worldName(), Math.floorDiv(heart.x(), 16), Math.floorDiv(heart.z(), 16)));
+            if (home == null) {
+                continue;
+            }
+            setField(town, "homeBlock", home);
+            TownyWorld world = home.getWorld();
+            setField(town, "world", world);
+            world.addTown(town);
+            if (heart != null && world.getBukkitWorld() != null) {
+                town.setSpawn(new Location(world.getBukkitWorld(), heart.x() + 0.5, heart.y(), heart.z() + 0.5));
             }
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadNations(TownyUniverse universe, NationService service,
-                                    Map<UUID, TownClaimTown> towns) throws Exception {
-        for (com.humankindmc.claims.nation.Nation source : service.nations()) {
-            TownClaimNation nation = new TownClaimNation(source.name(), source.id());
-            for (UUID townId : service.memberTownIds(source.id())) {
-                Town town = towns.get(townId);
+    private static void syncNations() throws Exception {
+        Map<UUID, com.humankindmc.claims.nation.Nation> sources = nationService.nations().stream()
+                .collect(Collectors.toMap(com.humankindmc.claims.nation.Nation::id, Function.identity()));
+        for (UUID nationId : Set.copyOf(NATIONS.keySet())) {
+            if (!sources.containsKey(nationId)) {
+                removeNation(NATIONS.remove(nationId));
+            }
+        }
+        for (com.humankindmc.claims.nation.Nation source : sources.values()) {
+            TownClaimNation nation = NATIONS.get(source.id());
+            if (nation == null) {
+                nation = new TownClaimNation(source.name(), source.id());
+                universe.registerNation(nation);
+                NATIONS.put(source.id(), nation);
+            } else if (!nation.getName().equals(source.name())) {
+                renameNation(nation, source.name());
+            }
+        }
+
+        for (TownClaimTown town : TOWNS.values()) {
+            setField(town, "nation", null);
+        }
+        for (TownClaimNation nation : NATIONS.values()) {
+            ((List<Town>) field(nation, "towns").get(nation)).clear();
+            setField(nation, "capital", null);
+        }
+        for (com.humankindmc.claims.nation.Nation source : sources.values()) {
+            TownClaimNation nation = NATIONS.get(source.id());
+            for (UUID townId : nationService.memberTownIds(source.id())) {
+                TownClaimTown town = TOWNS.get(townId);
                 if (town != null) {
                     ((List<Town>) field(nation, "towns").get(nation)).add(town);
                     setField(town, "nation", nation);
                 }
             }
-            setField(nation, "capital", towns.get(source.capitalTownId()));
-            universe.registerNation(nation);
+            setField(nation, "capital", TOWNS.get(source.capitalTownId()));
         }
+        for (TownClaimTown town : TOWNS.values()) {
+            boolean occupied = TownMetaDataController.hasOccupyingNationUUID(town);
+            town.setConquered(occupied);
+            if (!occupied) {
+                continue;
+            }
+            TownClaimNation occupier = NATIONS.get(TownMetaDataController.getOccupyingNationUUID(town));
+            if (occupier == null) {
+                TownMetaDataController.removeOccupyingNationUUID(town);
+                town.setConquered(false);
+                town.save();
+            }
+        }
+    }
+
+    private static void moveTownToNation(UUID townId, UUID targetNationId) {
+        if (!nationService.forceMoveTown(townId, targetNationId).success()) {
+            throw new IllegalStateException("TownClaim could not move town " + townId + " to nation " + targetNationId);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setNation(Town town, Nation nation) throws Exception {
+        Nation oldNation = town.getNationOrNull();
+        if (oldNation != null) {
+            ((List<Town>) field(oldNation, "towns").get(oldNation)).remove(town);
+        }
+        setField(town, "nation", nation);
+        if (nation != null) {
+            List<Town> towns = (List<Town>) field(nation, "towns").get(nation);
+            if (!towns.contains(town)) {
+                towns.add(town);
+            }
+        }
+    }
+
+    private static void removeTown(TownClaimTown town) throws Exception {
+        if (SiegeController.hasSiege(town.getUUID())) {
+            SiegeController.removeSiege(SiegeController.getSiegeByTownUUID(town.getUUID()), SiegeRemoveReason.TOWN_DELETE);
+        }
+        for (WorldCoord coord : Set.copyOf(TOWN_BLOCKS.keySet())) {
+            TownBlock block = TOWN_BLOCKS.get(coord);
+            if (block.getTownOrNull() == town) {
+                universe.removeTownBlock(block);
+                TOWN_BLOCKS.remove(coord);
+            }
+        }
+        if (town.hasWorld()) {
+            try {
+                town.getHomeblockWorld().removeTown(town);
+            } catch (Exception ignored) {
+            }
+        }
+        universe.unregisterTown(town);
+    }
+
+    private static void removeNation(TownClaimNation nation) throws Exception {
+        for (Siege siege : new ArrayList<>(SiegeController.getSieges())) {
+            if (nation.getUUID().equals(siege.getAttacker().getUUID())) {
+                SiegeController.removeSiege(siege, SiegeRemoveReason.NATION_DELETE);
+            }
+        }
+        universe.unregisterNation(nation);
+    }
+
+    private static void renameTown(TownClaimTown town, String name) throws Exception {
+        universe.unregisterTown(town);
+        town.setName(name);
+        universe.registerTown(town);
+    }
+
+    private static void renameResident(TownClaimResident resident, String name) throws Exception {
+        universe.unregisterResident(resident);
+        resident.setName(name);
+        universe.registerResident(resident);
+    }
+
+    private static void renameNation(TownClaimNation nation, String name) throws Exception {
+        universe.unregisterNation(nation);
+        nation.setName(name);
+        universe.registerNation(nation);
     }
 
     private static <T> T service(Class<T> type) {

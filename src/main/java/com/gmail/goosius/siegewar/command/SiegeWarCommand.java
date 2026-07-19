@@ -4,6 +4,7 @@ import com.gmail.goosius.siegewar.Messaging;
 import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.SiegeWar;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimPermissions;
 import com.gmail.goosius.siegewar.metadata.ResidentMetaDataController;
 import com.gmail.goosius.siegewar.objects.BattleSession;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
@@ -123,7 +124,7 @@ public class SiegeWarCommand implements CommandExecutor, TabCompleter {
 
 		//This permission check handles all the perms checks except for nation & town
 		if(!args[0].equalsIgnoreCase("nation") && !args[0].equalsIgnoreCase("town")) {
-			if (!player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR.getNode(args[0]))) {
+			if (!TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR.getNode(args[0]))) {
 				Messaging.sendErrorMsg(player, Translatable.of("msg_err_command_disable"));
 				return;
 			}
@@ -248,7 +249,7 @@ public class SiegeWarCommand implements CommandExecutor, TabCompleter {
 			return;
 		}
 
-		if (!player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR_NATION.getNode(args[0]))) {
+		if (!TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR_NATION.getNode(args[0]))) {
 			player.sendMessage(Translatable.of("msg_err_command_disable").forLocale(player));
 			return;
 		}
@@ -347,7 +348,7 @@ public class SiegeWarCommand implements CommandExecutor, TabCompleter {
 			return;
 		}
 
-		if (!player.hasPermission(SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR_TOWN.getNode(args[0]))) {
+		if (!TownClaimPermissions.test(player, SiegeWarPermissionNodes.SIEGEWAR_COMMAND_SIEGEWAR_TOWN.getNode(args[0]))) {
 			player.sendMessage(Translatable.of("msg_err_command_disable").forLocale(player));
 			return;
 		}
