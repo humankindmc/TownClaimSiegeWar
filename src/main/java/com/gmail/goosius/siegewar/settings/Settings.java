@@ -19,6 +19,7 @@ import com.palmergames.bukkit.config.CommentedConfiguration;
 import com.palmergames.bukkit.config.migration.ConfigMigrator;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.TranslationLoader;
+import com.palmergames.bukkit.towny.object.Translation;
 import com.palmergames.bukkit.util.Version;
 import com.palmergames.util.TimeTools;
 
@@ -51,7 +52,7 @@ public class Settings {
 			Path langFolderPath = Paths.get(plugin.getDataFolder().getPath()).resolve("lang");
 			TranslationLoader loader = new TranslationLoader(langFolderPath, plugin, SiegeWar.class);
 			loader.load();
-			TownyAPI.getInstance().addTranslations(plugin, loader.getTranslations());
+			Translation.addTranslations(loader.getTranslations());
 		} catch (Exception e) {
 			SiegeWar.severe("Language file failed to load! Disabling!");
 			loadSuccessFlag = false;

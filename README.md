@@ -1,5 +1,18 @@
-# SiegeWar
-***SiegeWar*** adds a war system to ***Towny***.
+# TownClaimSiegeWar
+***TownClaimSiegeWar*** is the SiegeWar fork for [TownClaim](https://github.com/humankindmc/townclaim). It installs as its own `TownClaimSiegeWar.jar` and uses `plugins/TownClaimSiegeWar`, separate from TownClaim's jar and data folder.
+
+## Build
+
+Build the `integration/siegewar` branch of the sibling TownClaim checkout first, then package this repository with Java 25:
+
+```powershell
+cd ..\townclaim
+.\gradlew.bat build
+cd ..\TownClaimSiegeWar
+mvn package
+```
+
+Install both `townclaim-1.0.0-SNAPSHOT.jar` and `TownClaimSiegeWar-0.1.0-SNAPSHOT.jar`. Towny is not installed separately; the small compatibility surface SiegeWar still uses is bundled into this fork.
 ### Features
 * ⚔️ **Sieges:** Wars are conducted by means of sieges. A siege occurs when a nation attacks a town.
 * 🤖 **Automatic:** Sieges are started by players and automatically managed by the plugin. Daily staff management of sieges is not required.

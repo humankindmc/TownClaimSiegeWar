@@ -1,15 +1,15 @@
-name: ${project.artifactId}
-main: ${project.groupId}.${project.name}.${project.artifactId}
+name: TownClaimSiegeWar
+main: com.gmail.goosius.siegewar.SiegeWar
 version: ${project.version}
 api-version: ${project.bukkitAPIVersion}
 author: [Goosius,LlmDl]
 website: 'townyadvanced.github.io'
 prefix: ${project.artifactId}
-depend: [Towny]
-softdepend: [TownyCultures, TownyChat, dynmap, Dynmap-Towny]
+depend: [TownClaim]
+softdepend: [dynmap]
 folia-supported: true
 
-description: A war system made by Goosius for Towny.
+description: SiegeWar integrated with TownClaim.
 
 commands:
     siegewar:

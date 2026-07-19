@@ -5,6 +5,7 @@ import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
 import com.gmail.goosius.siegewar.metadata.NationMetaDataController;
 import com.gmail.goosius.siegewar.metadata.TownMetaDataController;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.gmail.goosius.siegewar.utils.SiegeWarMoneyUtil;
@@ -153,7 +154,7 @@ public class PlunderTown {
 
 		//Save data
 		if(townDestroyed) {
-			TownyUniverse.getInstance().getDataSource().removeTown(town, Cause.BANKRUPTCY);
+			TownClaimBridge.forceDisband(town);
 		} else {
 			SiegeController.saveSiege(siege);
 		}

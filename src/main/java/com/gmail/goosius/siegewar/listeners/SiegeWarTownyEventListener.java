@@ -110,6 +110,10 @@ public class SiegeWarTownyEventListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onNewDay(NewDayEvent event) {
+        runDailyTasks();
+    }
+
+    public void runDailyTasks() {
         if (SiegeWarSettings.getWarSiegeEnabled()) {
             if (SiegeWarSettings.isPlunderPaidOutOverDays()) {
                 SiegeWarMoneyUtil.payDailyPlunderDebt();
@@ -133,6 +137,10 @@ public class SiegeWarTownyEventListener implements Listener {
      */
     @EventHandler(ignoreCancelled = true)
     public void onNewHour(NewHourEvent event) {
+        runHourlyTasks();
+    }
+
+    public void runHourlyTasks() {
         if(SiegeWarSettings.getWarSiegeEnabled()) {
             SiegeWarImmunityUtil.evaluateExpiredImmunities();
             SiegeWarNotificationUtil.clearSiegeZoneProximityWarningsReceived();
@@ -144,6 +152,10 @@ public class SiegeWarTownyEventListener implements Listener {
      */
     @EventHandler(ignoreCancelled = true)
     public void onShortTime(NewShortTimeEvent event) {
+        runShortTimeTasks();
+    }
+
+    public void runShortTimeTasks() {
         if (SiegeWarSettings.getWarSiegeEnabled()) {
             SiegeWarNotificationUtil.sendSiegeZoneProximityWarnings();
             SiegeWarTimerTaskController.evaluateBattleSessions();
@@ -155,6 +167,12 @@ public class SiegeWarTownyEventListener implements Listener {
             SiegeWarTimerTaskController.evaluateBeacons();
 			SiegeWarTownPeacefulnessUtil.switchOffPeacefulnessForCapitals();
         }
+    }
+
+    public void scheduleTownClaimTasks() {
+        plugin.getScheduler().runGlobalRepeating(task -> runShortTimeTasks(), 100L, 100L);
+        plugin.getScheduler().runGlobalRepeating(task -> runHourlyTasks(), 72_000L, 72_000L);
+        plugin.getScheduler().runGlobalRepeating(task -> runDailyTasks(), 1_728_000L, 1_728_000L);
     }
 
     /**

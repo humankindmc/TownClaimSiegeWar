@@ -14,7 +14,6 @@ import com.gmail.goosius.siegewar.settings.ConfigNodes;
 import com.gmail.goosius.siegewar.settings.Settings;
 import com.palmergames.bukkit.config.CommentedConfiguration;
 import com.palmergames.bukkit.config.migration.ConfigMigrator;
-import com.palmergames.bukkit.towny.Towny;
 import com.palmergames.bukkit.towny.scheduling.TaskScheduler;
 import com.palmergames.bukkit.towny.scheduling.impl.BukkitTaskScheduler;
 import com.palmergames.bukkit.towny.scheduling.impl.FoliaTaskScheduler;
@@ -25,11 +24,10 @@ import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 import com.gmail.goosius.siegewar.command.SiegeWarAdminCommand;
 import com.gmail.goosius.siegewar.command.SiegeWarCommand;
-import com.gmail.goosius.siegewar.command.SiegeWarNationSetOccupationTaxAddonCommand;
 import com.gmail.goosius.siegewar.hud.SiegeHUDManager;
 import com.gmail.goosius.siegewar.integration.PAPIPlaceholderExpansion;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.integration.dynmap.DynmapIntegration;
-import com.gmail.goosius.siegewar.listeners.SiegeWarActionListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarBukkitEventListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarNationEventListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarPlotEventListener;
@@ -38,6 +36,7 @@ import com.gmail.goosius.siegewar.listeners.SiegeWarSelfListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarStatusScreenListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarTownEventListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarTownyEventListener;
+import com.gmail.goosius.siegewar.listeners.TownClaimActionListener;
 import com.gmail.goosius.siegewar.listeners.SiegeWarLoreListener;
 
 import java.io.File;
@@ -47,7 +46,6 @@ import java.nio.file.Path;
 public class SiegeWar extends JavaPlugin {
 	
 	private static SiegeWar plugin;
-	private final String requiredTownyVersion = "0.102.0.10";
 	private static final SiegeHUDManager siegeHUDManager = new SiegeHUDManager();
 	private final Object scheduler;
 
@@ -76,11 +74,11 @@ public class SiegeWar extends JavaPlugin {
     	
     	printSickASCIIArt();
     	
-        if (!townyVersionCheck()) {
-            severe("Towny version does not meet required minimum version: " + requiredTownyVersion);
-            siegeWarPluginError = true;
-        } else {
-            info("Towny version " + getTownyVersion() + " found.");
+		if (!getServer().getPluginManager().isPluginEnabled("TownClaim")) {
+			severe("TownClaim is not enabled.");
+			siegeWarPluginError = true;
+		} else {
+			info("TownClaim found.");
         }
         
         registerAdminCommands();
@@ -131,8 +129,8 @@ public class SiegeWar extends JavaPlugin {
     }
     
     private boolean loadAll() {
-    	return !Towny.getPlugin().isError()
-				&& Settings.loadSettingsAndLang()
+		return Settings.loadSettingsAndLang()
+				&& TownClaimBridge.load()
 				&& SiegeController.loadAll();
     }
 
@@ -140,18 +138,6 @@ public class SiegeWar extends JavaPlugin {
 		return getPluginMeta().getVersion();
 	}
 	
-    private boolean townyVersionCheck() {
-        try {
-			return Towny.isTownyVersionSupported(requiredTownyVersion);
-		} catch (NoSuchMethodError e) {
-			return false;
-		}
-    }
-
-    private String getTownyVersion() {
-        return Towny.getPlugin().getPluginMeta().getVersion();
-    }
-
 	private void checkIntegrations() {
 		if (siegeWarPluginError) {
 			severe("SiegeWar is in safe mode! Plugin integrations disabled.");
@@ -176,10 +162,12 @@ public class SiegeWar extends JavaPlugin {
 			pm.registerEvents(new SiegeWarSafeModeListener(this), this);
 			return false;
 		} else {
-			pm.registerEvents(new SiegeWarActionListener(this), this);
+			pm.registerEvents(new TownClaimActionListener(), this);
 			pm.registerEvents(new SiegeWarBukkitEventListener(), this);
 			pm.registerEvents(new SiegeHUDManager(), this);
-			pm.registerEvents(new SiegeWarTownyEventListener(this), this);
+			SiegeWarTownyEventListener townClaimTasks = new SiegeWarTownyEventListener(this);
+			pm.registerEvents(townClaimTasks, this);
+			townClaimTasks.scheduleTownClaimTasks();
 			pm.registerEvents(new SiegeWarNationEventListener(), this);
 			pm.registerEvents(new SiegeWarTownEventListener(this), this);
 			pm.registerEvents(new SiegeWarPlotEventListener(this), this);
@@ -207,7 +195,6 @@ public class SiegeWar extends JavaPlugin {
 			severe("SiegeWar is in safe mode. SiegeWar player commands not registered");
 		} else {
 			getCommand("siegewar").setExecutor(new SiegeWarCommand());
-			new SiegeWarNationSetOccupationTaxAddonCommand();
 		}
 	}
 
@@ -239,14 +226,7 @@ public class SiegeWar extends JavaPlugin {
 	}
 
 	private Object setScheduler() {
-		if (townyVersionCheck()) {
-			// We know that Towny is new enough to have the TaskSchedulers available.
-			if (isFoliaClassPresent())
-				return new FoliaTaskScheduler(this);
-			else
-				return new BukkitTaskScheduler(this);
-		}
-		return null; // Doesn't matter because SiegeWar will not pass the onEnable phase.
+		return isFoliaClassPresent() ? new FoliaTaskScheduler(this) : new BukkitTaskScheduler(this);
 	}
 
 	public static boolean isFoliaClassPresent() {

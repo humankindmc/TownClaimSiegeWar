@@ -2,6 +2,7 @@ package com.gmail.goosius.siegewar;
 
 import com.gmail.goosius.siegewar.metadata.NationMetaDataController;
 import com.gmail.goosius.siegewar.metadata.TownMetaDataController;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.gmail.goosius.siegewar.utils.SiegeWarMilitaryRanksUtil;
 import com.palmergames.bukkit.towny.TownyAPI;
@@ -162,7 +163,7 @@ public class TownOccupationController {
 				Messaging.sendGlobalMessage(Translatable.of("msg_occupation_tax_cannot_be_paid", town.getName()));
 				if (TownySettings.doesNationTaxDeleteConqueredTownsWhichCannotPay()) {
 					removeTownOccupation(town);
-					TownyUniverse.getInstance().getDataSource().removeTown(town, Cause.BANKRUPTCY);
+					TownClaimBridge.forceDisband(town);
 				}
 				return 0;
 			}
@@ -181,7 +182,7 @@ public class TownOccupationController {
 		} else {
 			Messaging.sendGlobalMessage(Translatable.of("msg_occupation_tax_cannot_be_paid", town.getName()));
 			removeTownOccupation(town);
-			TownyUniverse.getInstance().getDataSource().removeTown(town, Cause.BANKRUPTCY);
+			TownClaimBridge.forceDisband(town);
 			return 0;
 		}
 	}

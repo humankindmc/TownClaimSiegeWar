@@ -39,7 +39,6 @@ import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.gmail.goosius.siegewar.utils.SiegeWarBlockUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarDistanceUtil;
 import com.palmergames.bukkit.towny.TownyAPI;
-import com.palmergames.bukkit.towny.hooks.PluginIntegrations;
 import com.palmergames.bukkit.towny.object.Town;
 import com.palmergames.bukkit.towny.object.Translatable;
 
@@ -161,7 +160,7 @@ public class SiegeWarBukkitEventListener implements Listener {
 			return;
 		
 		// Let's ignore Citizens NPCs
-		if (PluginIntegrations.getInstance().isNPC(event.getPlayer()))
+		if (event.getPlayer().hasMetadata("NPC"))
 			return;
 		
 		// Don't stop a player if they have a teleport pass
