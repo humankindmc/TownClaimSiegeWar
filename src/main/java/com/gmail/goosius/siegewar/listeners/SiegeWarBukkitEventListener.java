@@ -3,7 +3,11 @@ package com.gmail.goosius.siegewar.listeners;
 import java.util.List;
 
 import com.gmail.goosius.siegewar.objects.BattleSession;
+import com.gmail.goosius.siegewar.SiegeWarAPI;
+import com.gmail.goosius.siegewar.enums.SiegeSide;
 import com.gmail.goosius.siegewar.utils.DataCleanupUtil;
+import com.gmail.goosius.siegewar.utils.SiegeWarBattleSessionUtil;
+import com.gmail.goosius.siegewar.utils.SiegeWarInventoryUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarNotificationUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarSpawnUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarWarningsUtil;
@@ -15,6 +19,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -144,7 +149,29 @@ public class SiegeWarBukkitEventListener implements Listener {
 	public void onPlayerDeath(PlayerDeathEvent event) {
 		//Check for siege-war related death effects
 		if(isSWEnabledAndIsThisAWarAllowedWorld(event.getEntity().getWorld())) {
+			applySiegeInventoryRules(event);
 			PlayerDeath.evaluateSiegePlayerDeath(event.getEntity(), event);
+		}
+	}
+
+	private static void applySiegeInventoryRules(PlayerDeathEvent event) {
+		Player player = event.getEntity();
+		Siege siege = SiegeWarAPI.getActiveSiegeAtLocation(player.getLocation());
+		if (siege == null)
+			return;
+
+		boolean keepInventory = SiegeWarSettings.isKeepInventoryOnSiegeZoneDeathEnabled();
+		if (keepInventory && SiegeWarSettings.isDefendersDropInventoryWhenLosingEnabled()
+				&& SiegeSide.isDefender(siege, player)
+				&& SiegeWarBattleSessionUtil.getSiegeBalanceIfSessionEndedNow(siege)
+						>= SiegeWarSettings.getDefendersDropInventoryWhenLosingThreshold()) {
+			keepInventory = false;
+		}
+
+		event.setKeepInventory(keepInventory);
+		if (keepInventory) {
+			SiegeWarInventoryUtil.degradeInventory(player);
+			event.getDrops().clear();
 		}
 	}
 	
@@ -244,6 +271,7 @@ public class SiegeWarBukkitEventListener implements Listener {
 	//Stops TNT/Minecarts from destroying blocks in the siegezone wilderness
 	@EventHandler(ignoreCancelled = true)
 	public void on(EntityExplodeEvent event) {
+		filterExplosionBlocks(event.blockList(), event.getEntity().getWorld());
 		if(isSWEnabledAndIsThisAWarAllowedWorld(event.getEntity().getWorld())
 				&& !event.isCancelled()
 				&& SiegeWarSettings.getSiegeZoneWildernessForbiddenExplodeEntityTypes().contains(event.getEntityType())
@@ -251,6 +279,17 @@ public class SiegeWarBukkitEventListener implements Listener {
 				&& SiegeWarDistanceUtil.isLocationInActiveSiegeZone(event.getLocation())) {
 			event.setCancelled(true);
 		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void on(BlockExplodeEvent event) {
+		filterExplosionBlocks(event.blockList(), event.getBlock().getWorld());
+	}
+
+	private static void filterExplosionBlocks(List<Block> blocks, World world) {
+		if (!isSWEnabledAndIsThisAWarAllowedWorld(world))
+			return;
+		blocks.retainAll(SiegeWarTownyEventListener.filterExplodeListForSiege(blocks));
 	}
 	
 	/**

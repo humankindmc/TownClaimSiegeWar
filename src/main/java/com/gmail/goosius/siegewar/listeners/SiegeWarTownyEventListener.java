@@ -189,10 +189,11 @@ public class SiegeWarTownyEventListener implements Listener {
             return;
         if (event.getEntity() != null && !TownyAPI.getInstance().getTownyWorld(event.getEntity().getWorld()).isWarAllowed())
             return;    
-        List<Block> filteredExplodeList = event.getTownyFilteredBlockList();
-        filteredExplodeList = filterExplodeListBySiegeBannerProtection(filteredExplodeList);
-        filteredExplodeList = filterExplodeListByTrapWarfareMitigation(filteredExplodeList);
-        event.setBlockList(filteredExplodeList);
+        event.setBlockList(filterExplodeListForSiege(event.getTownyFilteredBlockList()));
+    }
+
+    static List<Block> filterExplodeListForSiege(List<Block> blocks) {
+        return filterExplodeListByTrapWarfareMitigation(filterExplodeListBySiegeBannerProtection(blocks));
     }
 
     /**

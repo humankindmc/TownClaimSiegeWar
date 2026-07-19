@@ -116,9 +116,10 @@ public class SiegeWar extends JavaPlugin {
 	}
 
 	@Override
-    public void onDisable() {
-    	info("Shutting down...");
-    }
+	public void onDisable() {
+		TownClaimBridge.unload();
+		info("Shutting down...");
+	}
     
     private boolean loadAll() {
 		return Settings.loadSettingsAndLang()

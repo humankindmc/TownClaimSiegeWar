@@ -6,7 +6,11 @@ import com.gmail.goosius.siegewar.enums.SiegeRemoveReason;
 import com.gmail.goosius.siegewar.metadata.TownMetaDataController;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.Settings;
+import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
+import com.gmail.goosius.siegewar.utils.SiegeWarTownPeacefulnessUtil;
+import com.humankindmc.claims.ClaimManager;
 import com.humankindmc.claims.ClaimsService;
+import com.humankindmc.claims.integration.TownOperationGuard;
 import com.humankindmc.claims.model.Claim;
 import com.humankindmc.claims.nation.NationService;
 import com.humankindmc.claims.town.TownMember;
@@ -62,6 +66,10 @@ public final class TownClaimBridge {
             nationService = service(NationService.class);
             claimsService = service(ClaimsService.class);
             heartRepository = service(TownHeartRepository.class);
+            TownOperationGuard operationGuard = new TownClaimOperationGuard();
+            townService.setOperationGuard(operationGuard);
+            ((ClaimManager) claimsService).setOperationGuard(operationGuard);
+            nationService.setOperationGuard(operationGuard);
             universe = TownyUniverse.getInstance();
             universe.setPermissionSource(new TownClaimPermissionSource());
             loaded = true;
@@ -69,7 +77,7 @@ public final class TownClaimBridge {
             SiegeWar.info("TownClaim bridge loaded " + TOWNS.size() + " towns and " + NATIONS.size() + " nations.");
             return true;
         } catch (Exception exception) {
-            loaded = false;
+            unload();
             SiegeWar.severe("Could not load TownClaim data: " + exception.getMessage());
             exception.printStackTrace();
             return false;
@@ -102,6 +110,28 @@ public final class TownClaimBridge {
             throw new IllegalStateException("TownClaim could not disband " + town.getName());
         }
         synchronize();
+    }
+
+    public static void unload() {
+        if (townService != null) {
+            townService.setOperationGuard(null);
+        }
+        if (claimsService instanceof ClaimManager manager) {
+            manager.setOperationGuard(null);
+        }
+        if (nationService != null) {
+            nationService.setOperationGuard(null);
+        }
+        loaded = false;
+    }
+
+    static Town town(UUID townId) {
+        Town town = TOWNS.get(townId);
+        if (town == null) {
+            synchronize();
+            town = TOWNS.get(townId);
+        }
+        return town;
     }
 
     public static void occupy(Town town, Nation occupier) {
@@ -167,10 +197,24 @@ public final class TownClaimBridge {
                 town = new TownClaimTown(source.name(), source.id());
                 universe.registerTown(town);
                 TOWNS.put(source.id(), town);
+                initializeTown(source, town);
             } else if (!town.getName().equals(source.name())) {
                 renameTown(town, source.name());
             }
         }
+    }
+
+    private static void initializeTown(com.humankindmc.claims.town.Town source, Town town) {
+        if (!town.hasMeta("siegewar_siegeImmunityEndTime")) {
+            long immunityMillis = (long) (SiegeWarSettings.getSiegeImmunityNewTownsHours() * 60 * 60 * 1000);
+            TownMetaDataController.setSiegeImmunityEndTime(town, source.createdAt().toEpochMilli() + immunityMillis);
+        }
+        if (SiegeWarSettings.getWarCommonPeacefulTownsEnabled() && !town.hasMeta("siegewar_peaceSetting")) {
+            boolean peaceful = SiegeWarSettings.getNewTownPeacefulness();
+            SiegeWarTownPeacefulnessUtil.setTownPeacefulness(town, peaceful);
+            SiegeWarTownPeacefulnessUtil.setDesiredTownPeacefulness(town, peaceful);
+        }
+        town.save();
     }
 
     @SuppressWarnings("unchecked")
