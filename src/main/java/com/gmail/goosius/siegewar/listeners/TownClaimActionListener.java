@@ -31,7 +31,7 @@ public final class TownClaimActionListener implements Listener {
         Block block = event.getBlockPlaced();
         TownBlock townBlock = TownyAPI.getInstance().getTownBlock(block.getLocation());
         TownyBuildEvent action = new TownyBuildEvent(event.getPlayer(), block.getLocation(), block.getType(), block,
-                townBlock, townBlock == null);
+                townBlock, false);
         PlaceBlock.evaluateSiegeWarPlaceBlockRequest(event.getPlayer(), block, action);
         copyCancellation(action, event.getPlayer(), event);
     }
@@ -44,7 +44,7 @@ public final class TownClaimActionListener implements Listener {
         Block block = event.getBlock();
         TownBlock townBlock = TownyAPI.getInstance().getTownBlock(block.getLocation());
         TownyDestroyEvent action = new TownyDestroyEvent(event.getPlayer(), block.getLocation(), block.getType(), block,
-                townBlock, townBlock == null);
+                townBlock, false);
         try {
             DestroyBlock.evaluateSiegeWarDestroyBlockRequest(action);
         } catch (TownyException exception) {
