@@ -655,6 +655,8 @@ msg_swa_remove_siege_admin_command: '&bSiege of %s removed via admin commands.'
 msg_swa_remove_siege_nation_delete: '&bSiege of %s removed because the attacking nation no longer exists.'
 msg_swa_remove_siege_town_delete: '&bSiege of %s removed because the town was deleted.'
 msg_swa_remove_siege_town_ruin: '&bSiege of %s removed because the town was ruined.'
+msg_swa_remove_siege_peace: '&bSiege of %s ended because the nations made peace.'
+msg_townclaim_territory_invaded: '&b%s was captured by %s.'
 msg_swa_remove_siege_immunity_expired: '&bSiege of %s removed because siege immunity expired.'
 msg_swa_battle: 'Battle'
 

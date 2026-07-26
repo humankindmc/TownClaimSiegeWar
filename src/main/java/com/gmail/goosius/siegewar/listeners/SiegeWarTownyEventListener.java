@@ -7,6 +7,7 @@ import com.gmail.goosius.siegewar.TownOccupationController;
 import com.gmail.goosius.siegewar.enums.SiegeSide;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
 import com.gmail.goosius.siegewar.hud.SiegeHUDManager;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.objects.BattleSession;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
@@ -110,6 +111,10 @@ public class SiegeWarTownyEventListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onNewDay(NewDayEvent event) {
+        runDailyTasks();
+    }
+
+    public void runDailyTasks() {
         if (SiegeWarSettings.getWarSiegeEnabled()) {
             if (SiegeWarSettings.isPlunderPaidOutOverDays()) {
                 SiegeWarMoneyUtil.payDailyPlunderDebt();
@@ -133,6 +138,10 @@ public class SiegeWarTownyEventListener implements Listener {
      */
     @EventHandler(ignoreCancelled = true)
     public void onNewHour(NewHourEvent event) {
+        runHourlyTasks();
+    }
+
+    public void runHourlyTasks() {
         if(SiegeWarSettings.getWarSiegeEnabled()) {
             SiegeWarImmunityUtil.evaluateExpiredImmunities();
             SiegeWarNotificationUtil.clearSiegeZoneProximityWarningsReceived();
@@ -144,6 +153,11 @@ public class SiegeWarTownyEventListener implements Listener {
      */
     @EventHandler(ignoreCancelled = true)
     public void onShortTime(NewShortTimeEvent event) {
+        runShortTimeTasks();
+    }
+
+    public void runShortTimeTasks() {
+        TownClaimBridge.synchronize();
         if (SiegeWarSettings.getWarSiegeEnabled()) {
             SiegeWarNotificationUtil.sendSiegeZoneProximityWarnings();
             SiegeWarTimerTaskController.evaluateBattleSessions();
@@ -155,6 +169,12 @@ public class SiegeWarTownyEventListener implements Listener {
             SiegeWarTimerTaskController.evaluateBeacons();
 			SiegeWarTownPeacefulnessUtil.switchOffPeacefulnessForCapitals();
         }
+    }
+
+    public void scheduleTownClaimTasks() {
+        plugin.getScheduler().runGlobalRepeating(task -> runShortTimeTasks(), 100L, 100L);
+        plugin.getScheduler().runGlobalRepeating(task -> runHourlyTasks(), 72_000L, 72_000L);
+        plugin.getScheduler().runGlobalRepeating(task -> runDailyTasks(), 1_728_000L, 1_728_000L);
     }
 
     /**
@@ -169,10 +189,11 @@ public class SiegeWarTownyEventListener implements Listener {
             return;
         if (event.getEntity() != null && !TownyAPI.getInstance().getTownyWorld(event.getEntity().getWorld()).isWarAllowed())
             return;    
-        List<Block> filteredExplodeList = event.getTownyFilteredBlockList();
-        filteredExplodeList = filterExplodeListBySiegeBannerProtection(filteredExplodeList);
-        filteredExplodeList = filterExplodeListByTrapWarfareMitigation(filteredExplodeList);
-        event.setBlockList(filteredExplodeList);
+        event.setBlockList(filterExplodeListForSiege(event.getTownyFilteredBlockList()));
+    }
+
+    static List<Block> filterExplodeListForSiege(List<Block> blocks) {
+        return filterExplodeListByTrapWarfareMitigation(filterExplodeListBySiegeBannerProtection(blocks));
     }
 
     /**

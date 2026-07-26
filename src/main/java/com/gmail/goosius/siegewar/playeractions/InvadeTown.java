@@ -5,6 +5,7 @@ import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.TownOccupationController;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
 import com.gmail.goosius.siegewar.events.PreInvadeEvent;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.metadata.NationMetaDataController;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
@@ -55,6 +56,15 @@ public class InvadeTown {
 	 * @param siege the siege
 	 */
     public static void invadeTown(Nation invadingNation, Town targetTown, Siege siege)  {
+		String targetName = targetTown.getName();
+		if (TownClaimBridge.captureTerritory(siege, invadingNation)) {
+			siege.setTownInvaded(true);
+			SiegeController.saveSiege(siege);
+			Messaging.sendGlobalMessage(Translatable.of("msg_townclaim_territory_invaded",
+					targetName, invadingNation.getName()));
+			return;
+		}
+
 		Nation nationOfInvadedTown = targetTown.getNationOrNull();
 
 		/*
@@ -121,7 +131,8 @@ public class InvadeTown {
 		if (!siege.getStatus().allowsInvading())
 			throw new TownyException(translator.of("msg_err_cannot_invade_without_victory"));
 
-        if (!SiegeWarSettings.getWarSiegeInvadeCapitalEnabled() && siege.getTown().isCapital())
+        if (!TownClaimBridge.isTerritory(targetTown)
+				&& !SiegeWarSettings.getWarSiegeInvadeCapitalEnabled() && siege.getTown().isCapital())
             throw new TownyException(translator.of("msg_err_cannot_capture_capital_town"));
         
 		if (siege.isTownInvaded())
@@ -134,6 +145,7 @@ public class InvadeTown {
 
 		SiegeWarDistanceUtil.throwIfTownIsTooFarFromNationCapitalByDistance(residentsNation, targetTown);
 
-		SiegeWarNationUtil.throwIfNationHasTooManyTowns(residentsNation);
+		if (!TownClaimBridge.isTerritory(targetTown))
+			SiegeWarNationUtil.throwIfNationHasTooManyTowns(residentsNation);
 	}
 }

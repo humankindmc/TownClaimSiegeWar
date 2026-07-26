@@ -1,5 +1,21 @@
-# SiegeWar
-***SiegeWar*** adds a war system to ***Towny***.
+# TownClaimSiegeWar
+***TownClaimSiegeWar*** is the SiegeWar fork for [TownClaim](https://github.com/humankindmc/townclaim). It installs as its own `TownClaimSiegeWar.jar` and uses `plugins/TownClaimSiegeWar`, separate from TownClaim's jar and data folder.
+
+## Build
+
+Build the `integration/siegewar` branch of the sibling TownClaim checkout first, then package this repository with Java 25:
+
+```powershell
+cd ..\townclaim
+.\gradlew.bat build
+cd ..\TownClaimSiegeWar
+mvn package
+```
+
+Install both `townclaim-1.0.0-SNAPSHOT.jar` and `TownClaimSiegeWar-0.1.0-SNAPSHOT.jar`. Towny is not installed separately; the small compatibility surface SiegeWar still uses is bundled into this fork.
+
+TownClaim towns, selected memberships, claims, town hearts, and nations are mirrored into SiegeWar and refreshed while the server runs. Occupation changes are written back to TownClaim. Siege restrictions are also enforced through TownClaim's service layer for recruitment, claiming, unclaiming, nation departure, and capital changes; combat, explosions, fire, buckets, and death inventory behavior use native Bukkit events. Town officers/mayors receive town-level SiegeWar authority, and leaders of a nation's leader town receive nation-level authority; grant the normal `siegewar.*` Bukkit nodes to additional soldiers. Because TownClaim does not yet expose diplomacy, every foreign nation is treated as a valid opponent. Economy-only SiegeWar features remain disabled while TownClaim's treasury backend is the standalone no-op implementation.
+
 ### Features
 * ⚔️ **Sieges:** Wars are conducted by means of sieges. A siege occurs when a nation attacks a town.
 * 🤖 **Automatic:** Sieges are started by players and automatically managed by the plugin. Daily staff management of sieges is not required.

@@ -2,8 +2,8 @@ package com.gmail.goosius.siegewar.hud;
 
 import java.util.HashMap;
 import java.util.Map;
+import com.gmail.goosius.siegewar.SiegeWar;
 import com.gmail.goosius.siegewar.objects.Siege;
-import com.palmergames.bukkit.towny.Towny;
 import com.palmergames.bukkit.towny.huds.HUDManager;
 import com.palmergames.bukkit.towny.huds.providers.FoliaHUD;
 import com.palmergames.bukkit.towny.huds.providers.HUD;
@@ -22,7 +22,7 @@ public class SiegeHUDManager implements Listener {
 	static Map<Player, Siege> warHudUsers;
 
     public SiegeHUDManager() {
-		boolean isFolia = Towny.getPlugin().isFolia();
+		boolean isFolia = SiegeWar.isFoliaClassPresent();
 
 		HUD siegeWarHUD = new HUD(SIEGE_WAR_HUD_NAME, SIEGE_WAR_HUD_OBJ, (p) -> SiegeWarHud.updateHUD(p), (p, siege) -> SiegeWarHud.updateHUD(p, (Siege) siege));
 		SiegeWarHud siegeHUD = new SiegeWarHud(siegeWarHUD);

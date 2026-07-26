@@ -2,16 +2,24 @@ package com.gmail.goosius.siegewar.settings;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.bukkit.plugin.Plugin;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import com.gmail.goosius.siegewar.SiegeWar;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.utils.FileMgmt;
 import com.gmail.goosius.siegewar.utils.SiegeWarBattleSessionUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarBlockProtectionUtil;
@@ -19,6 +27,7 @@ import com.palmergames.bukkit.config.CommentedConfiguration;
 import com.palmergames.bukkit.config.migration.ConfigMigrator;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.TranslationLoader;
+import com.palmergames.bukkit.towny.object.Translation;
 import com.palmergames.bukkit.util.Version;
 import com.palmergames.util.TimeTools;
 
@@ -33,6 +42,7 @@ public class Settings {
 
 		try {
 			Settings.loadConfig(sw.getDataFolder().getPath() + File.separator + "config.yml", sw.getVersion());
+			TownClaimBridge.configureTownySettings();
 		} catch (Exception e) {
 			SiegeWar.severe("Config.yml failed to load! Disabling!");
 			loadSuccessFlag = false;
@@ -51,8 +61,10 @@ public class Settings {
 			Path langFolderPath = Paths.get(plugin.getDataFolder().getPath()).resolve("lang");
 			TranslationLoader loader = new TranslationLoader(langFolderPath, plugin, SiegeWar.class);
 			loader.load();
-			TownyAPI.getInstance().addTranslations(plugin, loader.getTranslations());
+			Translation.addTranslations(loadTownyTranslations(loader.getTranslations()));
+			Translation.addTranslations(loader.getTranslations());
 		} catch (Exception e) {
+			e.printStackTrace();
 			SiegeWar.severe("Language file failed to load! Disabling!");
 			loadSuccessFlag = false;
 	    }
@@ -81,6 +93,26 @@ public class Settings {
 		return loadSuccessFlag;
 	}
 	
+	private static Map<String, Map<String, String>> loadTownyTranslations(Map<String, Map<String, String>> siegeWarTranslations) throws IOException {
+		Map<String, Map<String, String>> translations = new HashMap<>();
+		Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
+
+		for (String locale : siegeWarTranslations.keySet()) {
+			String resource = "/towny-base/lang/" + locale.replace('_', '-') + ".yml";
+			try (InputStream input = Settings.class.getResourceAsStream(resource)) {
+				if (input == null)
+					continue;
+
+				Map<String, Object> values = yaml.load(input);
+				Map<String, String> language = translations.computeIfAbsent(locale, ignored -> new HashMap<>());
+				for (Map.Entry<String, Object> entry : values.entrySet())
+					language.put(entry.getKey().toLowerCase(Locale.ROOT), String.valueOf(entry.getValue()));
+			}
+		}
+
+		return translations;
+	}
+
 	public static void loadConfig(String filepath, String version) throws Exception {
 		if (FileMgmt.checkOrCreateFile(filepath)) {
 			File file = new File(filepath);
