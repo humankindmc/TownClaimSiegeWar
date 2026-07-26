@@ -45,7 +45,7 @@ final class TownClaimOperationGuard implements TownOperationGuard {
 
     @Override
     public Decision canUnclaim(UUID actorId, Claim claim) {
-        com.palmergames.bukkit.towny.object.Town town = TownClaimBridge.town(claim.townId());
+        com.palmergames.bukkit.towny.object.Town town = TownClaimBridge.siegeTarget(claim);
         if (town == null) {
             return Decision.allow();
         }

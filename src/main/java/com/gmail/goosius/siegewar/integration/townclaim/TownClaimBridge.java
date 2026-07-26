@@ -31,7 +31,10 @@ import org.bukkit.World;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +48,7 @@ public final class TownClaimBridge {
     private static final Map<UUID, TownClaimTown> TOWNS = new HashMap<>();
     private static final Map<UUID, TownClaimResident> RESIDENTS = new HashMap<>();
     private static final Map<UUID, TownClaimNation> NATIONS = new HashMap<>();
+    private static final Map<UUID, TownClaimTerritory> TERRITORIES = new HashMap<>();
     private static final Map<WorldCoord, TownBlock> TOWN_BLOCKS = new HashMap<>();
 
     private static TownyUniverse universe;
@@ -134,6 +138,40 @@ public final class TownClaimBridge {
         return town;
     }
 
+    public static boolean areAtWar(UUID firstNationId, UUID secondNationId) {
+        return nationService != null && nationService.areAtWar(firstNationId, secondNationId);
+    }
+
+    public static boolean isTerritory(Town town) {
+        return town instanceof TownClaimTerritory;
+    }
+
+    public static boolean captureTerritory(Siege siege, Nation occupier) {
+        return captureTerritory(siege.getTown(), occupier);
+    }
+
+    public static boolean captureTerritory(Town town, Nation occupier) {
+        if (!(town instanceof TownClaimTerritory territory)) {
+            return false;
+        }
+        com.humankindmc.claims.nation.Nation targetNation = nationService.nation(occupier.getUUID())
+                .orElseThrow(() -> new IllegalStateException("TownClaim nation not found: " + occupier.getUUID()));
+        if (claimsService.transferConnectedClaimsToNation(territory.anchorClaimId(), targetNation) == 0) {
+            throw new IllegalStateException("TownClaim territory no longer exists: " + territory.getName());
+        }
+        synchronize();
+        return true;
+    }
+
+    static Town siegeTarget(Claim claim) {
+        if (claim == null) {
+            return null;
+        }
+        TownBlock block = TOWN_BLOCKS.get(new WorldCoord(claim.worldName(), claim.region().minChunkX(),
+                claim.region().minChunkZ()));
+        return block == null ? null : block.getTownOrNull();
+    }
+
     public static void occupy(Town town, Nation occupier) {
         try {
             moveTownToNation(town.getUUID(), occupier.getUUID());
@@ -164,8 +202,9 @@ public final class TownClaimBridge {
             syncWorlds();
             syncTowns();
             syncResidents();
-            syncClaims();
             syncNations();
+            syncClaims();
+            removeSiegesAtPeace();
         } finally {
             synchronizing = false;
         }
@@ -267,13 +306,45 @@ public final class TownClaimBridge {
     @SuppressWarnings("unchecked")
     private static void syncClaims() throws Exception {
         Map<WorldCoord, TownClaimTown> expected = new LinkedHashMap<>();
+        Set<UUID> expectedTerritories = new java.util.HashSet<>();
         for (TownClaimTown town : TOWNS.values()) {
-            for (Claim claim : claimsService.getClaimsForTown(town.getUUID())) {
-                for (int x = claim.region().minChunkX(); x <= claim.region().maxChunkX(); x++) {
-                    for (int z = claim.region().minChunkZ(); z <= claim.region().maxChunkZ(); z++) {
-                        expected.put(new WorldCoord(claim.worldName(), x, z), town);
-                    }
+            List<List<Claim>> groups = claimGroups(claimsService.getClaimsForTown(town.getUUID()));
+            TownHeartLocation heart = heartRepository.findByTown(town.getUUID()).orElse(null);
+            Claim heartClaim = heart == null ? null : claimsService
+                    .getClaimAtBlock(heart.worldName(), heart.x(), heart.z()).orElse(null);
+            List<Claim> mainGroup = groups.stream()
+                    .filter(group -> heartClaim != null && group.stream().anyMatch(claim -> claim.id().equals(heartClaim.id())))
+                    .findFirst()
+                    .orElse(groups.isEmpty() ? List.of() : groups.getFirst());
+            int outpostNumber = 0;
+            for (List<Claim> group : groups) {
+                TownClaimTown target = town;
+                if (group != mainGroup) {
+                    Claim anchor = anchor(group);
+                    target = territory(anchor, town.getName() + " Outpost " + ++outpostNumber);
+                    prepareTerritory((TownClaimTerritory) target, town, town.getNationOrNull(),
+                            SiegeWarTownPeacefulnessUtil.isTownPeaceful(town));
+                    expectedTerritories.add(target.getUUID());
                 }
+                mapClaims(expected, group, target);
+            }
+        }
+        for (TownClaimNation nation : NATIONS.values()) {
+            TownClaimTown capital = (TownClaimTown) nation.getCapital();
+            int territoryNumber = 0;
+            for (List<Claim> group : claimGroups(claimsService.getClaimsForNation(nation.getUUID()))) {
+                Claim anchor = anchor(group);
+                TownClaimTerritory target = territory(anchor,
+                        nation.getName() + " Territory " + ++territoryNumber);
+                prepareTerritory(target, capital, nation, false);
+                expectedTerritories.add(target.getUUID());
+                mapClaims(expected, group, target);
+            }
+        }
+
+        for (UUID territoryId : Set.copyOf(TERRITORIES.keySet())) {
+            if (!expectedTerritories.contains(territoryId)) {
+                removeTown(TERRITORIES.remove(territoryId));
             }
         }
 
@@ -284,7 +355,7 @@ public final class TownClaimBridge {
                 TOWN_BLOCKS.remove(coord);
             }
         }
-        for (TownClaimTown town : TOWNS.values()) {
+        for (TownClaimTown town : allSiegeTargets()) {
             TownyWorld oldWorld = town.getHomeblockWorld();
             if (oldWorld != null) {
                 try {
@@ -311,8 +382,9 @@ public final class TownClaimBridge {
             firstBlocks.putIfAbsent(entry.getValue().getUUID(), block);
         }
 
-        for (TownClaimTown town : TOWNS.values()) {
-            TownHeartLocation heart = heartRepository.findByTown(town.getUUID()).orElse(null);
+        for (TownClaimTown town : allSiegeTargets()) {
+            TownHeartLocation heart = town instanceof TownClaimTerritory
+                    ? null : heartRepository.findByTown(town.getUUID()).orElse(null);
             TownBlock home = heart == null ? firstBlocks.get(town.getUUID()) : universe.getTownBlockOrNull(
                     new WorldCoord(heart.worldName(), Math.floorDiv(heart.x(), 16), Math.floorDiv(heart.z(), 16)));
             if (home == null) {
@@ -324,8 +396,84 @@ public final class TownClaimBridge {
             world.addTown(town);
             if (heart != null && world.getBukkitWorld() != null) {
                 town.setSpawn(new Location(world.getBukkitWorld(), heart.x() + 0.5, heart.y(), heart.z() + 0.5));
+            } else if (world.getBukkitWorld() != null) {
+                town.setSpawn(new Location(world.getBukkitWorld(), (home.getX() << 4) + 8.5,
+                        world.getBukkitWorld().getMinHeight(), (home.getZ() << 4) + 8.5));
             }
         }
+    }
+
+    private static List<List<Claim>> claimGroups(Collection<Claim> claims) {
+        Map<UUID, Claim> remaining = claims.stream()
+                .collect(Collectors.toMap(Claim::id, Function.identity()));
+        List<List<Claim>> groups = new ArrayList<>();
+        while (!remaining.isEmpty()) {
+            Claim first = remaining.values().iterator().next();
+            List<Claim> group = List.copyOf(claimsService.getConnectedClaims(first));
+            group.forEach(claim -> remaining.remove(claim.id()));
+            groups.add(group);
+        }
+        groups.sort(Comparator.comparing((List<Claim> group) -> anchor(group).createdAt())
+                .thenComparing(group -> anchor(group).id()));
+        return groups;
+    }
+
+    private static Claim anchor(List<Claim> claims) {
+        return claims.stream().min(Comparator.comparing(Claim::createdAt).thenComparing(Claim::id)).orElseThrow();
+    }
+
+    private static TownClaimTerritory territory(Claim anchor, String name) throws Exception {
+        UUID id = territoryId(anchor.id());
+        TownClaimTerritory territory = TERRITORIES.get(id);
+        if (territory == null) {
+            territory = new TownClaimTerritory(name, id, anchor.id());
+            TownMetaDataController.setSiegeImmunityEndTime(territory, 0);
+            universe.registerTown(territory);
+            TERRITORIES.put(id, territory);
+        } else if (!territory.getName().equals(name)) {
+            renameTown(territory, name);
+        }
+        return territory;
+    }
+
+    static UUID territoryId(UUID anchorClaimId) {
+        return UUID.nameUUIDFromBytes(("townclaim-territory:" + anchorClaimId)
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void prepareTerritory(TownClaimTerritory territory, TownClaimTown residentsFrom,
+                                         Nation nation, boolean peaceful) throws Exception {
+        setField(territory, "nation", nation);
+        List<Resident> residents = (List<Resident>) field(territory, "residents").get(territory);
+        residents.clear();
+        if (residentsFrom != null) {
+            residents.addAll((List<Resident>) field(residentsFrom, "residents").get(residentsFrom));
+            setField(territory, "mayor", field(residentsFrom, "mayor").get(residentsFrom));
+        } else {
+            setField(territory, "mayor", null);
+        }
+        if (SiegeWarTownPeacefulnessUtil.isTownPeaceful(territory) != peaceful) {
+            SiegeWarTownPeacefulnessUtil.setTownPeacefulness(territory, peaceful);
+            SiegeWarTownPeacefulnessUtil.setDesiredTownPeacefulness(territory, peaceful);
+        }
+    }
+
+    private static void mapClaims(Map<WorldCoord, TownClaimTown> expected, Collection<Claim> claims,
+                                  TownClaimTown target) {
+        for (Claim claim : claims) {
+            for (int x = claim.region().minChunkX(); x <= claim.region().maxChunkX(); x++) {
+                for (int z = claim.region().minChunkZ(); z <= claim.region().maxChunkZ(); z++) {
+                    expected.put(new WorldCoord(claim.worldName(), x, z), target);
+                }
+            }
+        }
+    }
+
+    private static Collection<TownClaimTown> allSiegeTargets() {
+        List<TownClaimTown> targets = new ArrayList<>(TOWNS.values());
+        targets.addAll(TERRITORIES.values());
+        return targets;
     }
 
     @SuppressWarnings("unchecked")
@@ -377,6 +525,18 @@ public final class TownClaimBridge {
                 TownMetaDataController.removeOccupyingNationUUID(town);
                 town.setConquered(false);
                 town.save();
+            }
+        }
+    }
+
+    private static void removeSiegesAtPeace() {
+        for (Siege siege : new ArrayList<>(SiegeController.getSieges())) {
+            if (!siege.getStatus().isActive() || !(siege.getAttacker() instanceof Nation attacker)) {
+                continue;
+            }
+            Nation defender = siege.getTown().getNationOrNull();
+            if (defender != null && !areAtWar(attacker.getUUID(), defender.getUUID())) {
+                SiegeController.removeSiege(siege, SiegeRemoveReason.PEACE);
             }
         }
     }

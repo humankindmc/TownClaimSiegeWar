@@ -4,7 +4,7 @@ import com.palmergames.bukkit.towny.object.Town;
 
 import java.util.UUID;
 
-final class TownClaimTown extends Town {
+class TownClaimTown extends Town {
     TownClaimTown(String name, UUID id) {
         super(name, id);
         TownClaimMetadataStore.hydrate("towns", id, this);

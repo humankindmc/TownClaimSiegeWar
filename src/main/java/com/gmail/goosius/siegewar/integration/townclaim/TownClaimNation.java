@@ -17,7 +17,6 @@ final class TownClaimNation extends Nation {
 
     @Override
     public boolean hasEnemy(Nation nation) {
-        // ponytail: TownClaim has no diplomacy system yet; treat every foreign nation as an opponent.
-        return nation != null && !getUUID().equals(nation.getUUID());
+        return nation != null && TownClaimBridge.areAtWar(getUUID(), nation.getUUID());
     }
 }

@@ -4,6 +4,7 @@ package com.gmail.goosius.siegewar.playeractions;
 import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.enums.SiegeType;
 import com.gmail.goosius.siegewar.enums.SiegeWarPermissionNodes;
+import com.gmail.goosius.siegewar.integration.townclaim.TownClaimBridge;
 import com.gmail.goosius.siegewar.settings.SiegeWarSettings;
 import com.gmail.goosius.siegewar.utils.SiegeWarDistanceUtil;
 import com.gmail.goosius.siegewar.utils.SiegeWarNationUtil;
@@ -62,21 +63,23 @@ public class StartConquestSiege {
 		if(!TownyUniverse.getInstance().getPermissionSource().testPermission(player, SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_STARTCONQUESTSIEGE.getNode()))
 			throw new TownyException(translator.of("msg_err_action_disable_missing_node", SiegeWarPermissionNodes.SIEGEWAR_NATION_SIEGE_STARTCONQUESTSIEGE.getNode()));
 
-		if (targetTown.hasNation()) {
-			Nation nationOfDefendingTown = targetTown.getNationOrNull();
+		if (!targetTown.hasNation())
+			throw new TownyException(translator.of("msg_err_siege_war_cannot_attack_non_enemy_nation"));
 
-			if (nationOfSiegeStarter == nationOfDefendingTown)
-				throw new TownyException(translator.of("msg_err_siege_war_cannot_attack_town_in_own_nation"));
+		Nation nationOfDefendingTown = targetTown.getNationOrNull();
 
-			if (!nationOfSiegeStarter.hasEnemy(nationOfDefendingTown))
-				throw new TownyException(translator.of("msg_err_siege_war_cannot_attack_non_enemy_nation"));
-		}
+		if (nationOfSiegeStarter == nationOfDefendingTown)
+			throw new TownyException(translator.of("msg_err_siege_war_cannot_attack_town_in_own_nation"));
+
+		if (!nationOfSiegeStarter.hasEnemy(nationOfDefendingTown))
+			throw new TownyException(translator.of("msg_err_siege_war_cannot_attack_non_enemy_nation"));
 
 		SiegeWarDistanceUtil.throwIfTownIsTooFarFromNationCapitalByWorld(nationOfSiegeStarter, targetTown);
 
 		SiegeWarDistanceUtil.throwIfTownIsTooFarFromNationCapitalByDistance(nationOfSiegeStarter, targetTown);
 
-		SiegeWarNationUtil.throwIfNationHasTooManyTowns(nationOfSiegeStarter);
+		if (!TownClaimBridge.isTerritory(targetTown))
+			SiegeWarNationUtil.throwIfNationHasTooManyTowns(nationOfSiegeStarter);
 	}
 
 }

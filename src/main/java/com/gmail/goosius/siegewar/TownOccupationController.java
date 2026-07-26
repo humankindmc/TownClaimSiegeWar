@@ -65,6 +65,9 @@ public class TownOccupationController {
     }
 
     public static void setTownOccupation(Town targetTown, @NotNull Nation occupyingNation) {
+        if (TownClaimBridge.captureTerritory(targetTown, occupyingNation))
+            return;
+
         //If the town has a nation which is different than the incoming one, remove town from nation
 		Nation homeNation = targetTown.getNationOrNull();
         

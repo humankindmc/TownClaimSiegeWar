@@ -5,6 +5,7 @@ public enum SiegeRemoveReason {
     NATION_DELETE("msg_swa_remove_siege_nation_delete"),
     TOWN_DELETE("msg_swa_remove_siege_town_delete"),
     TOWN_RUIN("msg_swa_remove_siege_town_ruin"),
+    PEACE("msg_swa_remove_siege_peace"),
     IMMUNITY_EXPIRED("msg_swa_remove_siege_immunity_expired");
 
     private final String translatable;

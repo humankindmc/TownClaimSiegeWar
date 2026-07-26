@@ -18,6 +18,9 @@ public final class TownClaimMetadataStoreCheck {
         assert Long.valueOf(8).equals(TownClaimMetadataStore.field("long", "LongDataField", "8").getValue());
         assert "value".equals(TownClaimMetadataStore.field("string", "StringDataField", "value").getValue());
         assert TownClaimMetadataStore.field("unknown", "Unknown", "value") == null;
+        UUID claimId = UUID.randomUUID();
+        assert TownClaimBridge.territoryId(claimId).equals(TownClaimBridge.territoryId(claimId));
+        assert !TownClaimBridge.territoryId(claimId).equals(TownClaimBridge.territoryId(UUID.randomUUID()));
 
         Field config = TownySettings.class.getDeclaredField("config");
         config.setAccessible(true);
