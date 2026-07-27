@@ -210,19 +210,21 @@ public class SiegeWarCommand implements CommandExecutor, TabCompleter {
 
 	private void parseSiegeWarHudCommand(Player player, String[] args) {
 		try {
+			Town town;
 			if (args.length == 0) {
-				TownyMessaging.sendMessage(player, ChatTools.formatTitle("/siegewar hud"));
-				TownyMessaging.sendMessage(player, ChatTools.formatCommand("Eg", "/sw hud", "[town]", ""));
+				town = TownyAPI.getInstance().getTown(player.getLocation());
+				if (town == null)
+					throw new TownyException(Translatable.of("msg_err_town_is_not_sieged"));
 			} else {
-				Town town = TownyUniverse.getInstance().getTown(args[0]);
-				if (town == null) 
+				town = TownyUniverse.getInstance().getTown(args[0]);
+				if (town == null)
 					throw new TownyException(Translatable.of("msg_err_town_not_registered", args[0]));
-
-				if (!SiegeController.getSiegedTowns().contains(town))
-					throw new TownyException(Translatable.of("msg_err_not_being_sieged", town.getName()));
-
-				SiegeWar.getSiegeHUDManager().toggleWarHud(player, SiegeController.getSiege(town));
 			}
+
+			if (!SiegeController.hasActiveSiege(town))
+				throw new TownyException(Translatable.of("msg_err_not_being_sieged", town.getName()));
+
+			SiegeWar.getSiegeHUDManager().toggleWarHud(player, SiegeController.getSiege(town));
 		} catch (TownyException e) {
 			Messaging.sendErrorMsg(player, e.getMessage(player));
 		}
