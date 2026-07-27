@@ -2,7 +2,10 @@ package com.gmail.goosius.siegewar.hud;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import com.gmail.goosius.siegewar.SiegeController;
 import com.gmail.goosius.siegewar.SiegeWar;
+import com.gmail.goosius.siegewar.events.SiegeEndEvent;
 import com.gmail.goosius.siegewar.objects.Siege;
 import com.palmergames.bukkit.towny.huds.HUDManager;
 import com.palmergames.bukkit.towny.huds.providers.FoliaHUD;
@@ -49,7 +52,9 @@ public class SiegeHUDManager implements Listener {
 
     public static void toggleOff(Player player) {
         warHudUsers.remove(player);
-        HUDManager.toggleAllOff(player);
+        ServerHUD hud = HUDManager.getHUD(SIEGE_WAR_HUD_NAME);
+        if (hud != null)
+            hud.toggleOff(player);
     }
 
 	public static void updateHUDs() {
@@ -61,8 +66,22 @@ public class SiegeHUDManager implements Listener {
 			if (!hud.isActive(player)) {
 				hud.removePlayer(player);
 				warHudUsers.remove(player);
+			} else if (!isDisplayable(warHudUsers.get(player))) {
+				toggleOff(player);
 			} else
 				SiegeWarHud.updateHUD(player, warHudUsers.get(player));
+		}
+	}
+
+	static boolean isDisplayable(Siege siege) {
+		return siege != null && siege.getStatus().isActive() && SiegeController.hasSiege(siege.getTown());
+	}
+
+	@EventHandler
+	public void onSiegeEnd(SiegeEndEvent event) {
+		for (Map.Entry<Player, Siege> entry : Map.copyOf(warHudUsers).entrySet()) {
+			if (entry.getValue() == event.getSiege())
+				toggleOff(entry.getKey());
 		}
 	}
 

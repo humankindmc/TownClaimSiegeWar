@@ -6,6 +6,7 @@ import com.palmergames.bukkit.towny.object.Nation;
 import com.palmergames.bukkit.towny.object.Resident;
 import com.palmergames.bukkit.towny.object.Town;
 import com.palmergames.bukkit.towny.object.Translatable;
+import com.palmergames.bukkit.towny.utils.TownyComponents;
 import org.bukkit.command.CommandSender;
 
 public final class TownyMessaging {
@@ -14,7 +15,7 @@ public final class TownyMessaging {
 
     public static void sendMessage(CommandSender sender, String message) {
         if (sender != null) {
-            sender.sendMessage(message);
+            sender.sendMessage(TownyComponents.miniMessage(message));
         }
     }
 
