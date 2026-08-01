@@ -17,6 +17,7 @@ import com.humankindmc.claims.town.TownMember;
 import com.humankindmc.claims.town.TownService;
 import com.humankindmc.claims.townheart.TownHeartLocation;
 import com.humankindmc.claims.townheart.storage.TownHeartRepository;
+import com.palmergames.bukkit.config.CommentedConfiguration;
 import com.palmergames.bukkit.towny.TownySettings;
 import com.palmergames.bukkit.towny.TownyUniverse;
 import com.palmergames.bukkit.towny.object.Nation;
@@ -89,8 +90,14 @@ public final class TownClaimBridge {
     }
 
     public static void configureTownySettings() {
+        configureTownySettings(Settings.getConfig());
+    }
+
+    static void configureTownySettings(CommentedConfiguration config) {
         try {
-            setStaticField(TownySettings.class, "config", Settings.getConfig());
+            setStaticField(TownySettings.class, "config", config);
+            TownySettings.loadTownLevelConfig();
+            TownySettings.loadNationLevelConfig();
         } catch (Exception exception) {
             throw new IllegalStateException("Could not configure the Towny compatibility classes", exception);
         }
